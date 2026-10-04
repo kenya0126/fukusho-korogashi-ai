@@ -44,76 +44,128 @@ jobs:
               f"{today:%Y}/{today:%m}/{today:%m%d}.html"
           )
 
+          headers = {
+              "User-Agent": (
+                  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 "
+                  "like Mac OS X) AppleWebKit/605.1.15"
+              ),
+              "Accept-Language": "ja-JP,ja;q=0.9"
+          }
+
           r = requests.get(
               url,
-              headers={
-                  "User-Agent": "Mozilla/5.0"
-              },
+              headers=headers,
               timeout=30
           )
+
           r.raise_for_status()
 
-          soup = BeautifulSoup(r.content, "html.parser")
+          soup = BeautifulSoup(
+              r.content,
+              "html.parser"
+          )
 
-lines = [
-    x.strip()
-    for x in soup.stripped_strings
-    if x.strip()
-]
+          lines = []
 
-races = []
-venue = ""
+          for item in soup.stripped_strings:
+              text = re.sub(
+                  r"\s+",
+                  " ",
+                  item
+              ).strip()
 
-for i, line in enumerate(lines):
+              if text:
+                  lines.append(text)
 
-    m = re.search(
-        r"\d+回(東京|京都|中山|阪神|新潟|中京|福島|小倉|札幌|函館)\d+日",
-        line
-    )
+          venues = (
+              "東京",
+              "京都",
+              "中山",
+              "阪神",
+              "新潟",
+              "中京",
+              "福島",
+              "小倉",
+              "札幌",
+              "函館"
+          )
 
-    if m:
-        venue = m.group(1)
+          races = []
+          current_venue = ""
 
-    m = re.match(r"^(\d+)レース$", line)
+          for i, line in enumerate(lines):
 
-    if not m or not venue:
-        continue
+              venue_match = re.search(
+                  r"\d+回("
+                  + "|".join(venues)
+                  + r")\d+日",
+                  line
+              )
 
-    race_no = int(m.group(1))
-    name = ""
-    start = ""
+              if venue_match:
+                  current_venue = venue_match.group(1)
 
-    for x in lines[i + 1:i + 8]:
+              race_match = re.match(
+                  r"^(\d{1,2})レース$",
+                  line
+              )
 
-        t = re.search(r"(\d{1,2})時(\d{2})分", x)
+              if not race_match:
+                  continue
 
-        if t:
-            start = t.group(1) + ":" + t.group(2)
-            break
+              if not current_venue:
+                  continue
 
-        if not name:
-            name = x
+              race_no = int(
+                  race_match.group(1)
+              )
 
-    if name and start:
-        races.append({
-            "venue": venue,
-            "race": race_no,
-            "name": name,
-            "start": start
-        })
-          # 重複除去
+              race_name = ""
+              start_time = ""
+
+              for candidate in lines[
+                  i + 1:i + 10
+              ]:
+
+                  time_match = re.search(
+                      r"(\d{1,2})時(\d{2})分",
+                      candidate
+                  )
+
+                  if time_match:
+                      start_time = (
+                          time_match.group(1)
+                          + ":"
+                          + time_match.group(2)
+                      )
+                      break
+
+                  if not race_name:
+                      race_name = candidate
+
+              if race_name and start_time:
+
+                  races.append({
+                      "venue": current_venue,
+                      "race": race_no,
+                      "name": race_name,
+                      "start": start_time
+                  })
+
           unique = {}
 
           for race in races:
+
               key = (
                   race["venue"],
-                  race["race"],
-                  race["name"],
-                  race["start"]
+                  race["race"]
               )
+
               unique[key] = race
 
-          races = list(unique.values())
+          races = list(
+              unique.values()
+          )
 
           races.sort(
               key=lambda x: (
@@ -121,6 +173,24 @@ for i, line in enumerate(lines):
                   x["race"]
               )
           )
+
+          print(
+              "JRA races found:",
+              len(races)
+          )
+
+          for race in races:
+              print(
+                  race["venue"],
+                  race["race"],
+                  race["name"],
+                  race["start"]
+              )
+
+          if not races:
+              raise RuntimeError(
+                  "JRA race data could not be parsed."
+              )
 
           data = {
               "updated_at": now.isoformat(
@@ -142,40 +212,44 @@ for i, line in enumerate(lines):
               encoding="utf-8"
           )
 
-          # 表示用HTML
           rows = ""
 
-          for x in races:
+          for race in races:
+
               rows += f"""
               <div class="race">
                 <div class="venue">
-                  {x["venue"]}
+                  {race["venue"]}
                 </div>
-                <b>{x["race"]}R　{x["name"]}</b>
+
+                <b>
+                  {race["race"]}R　{race["name"]}
+                </b>
+
                 <br>
+
                 <small>
-                  発走 {x["start"]}
+                  発走 {race["start"]}
                 </small>
               </div>
-              """
-
-          if not races:
-              rows = """
-              <p>
-                本日のJRA開催情報を取得できませんでした。
-              </p>
               """
 
           html = f"""<!doctype html>
           <html lang="ja">
 
           <head>
-          <meta charset="utf-8">
-          <meta name="viewport"
-                content="width=device-width,initial-scale=1">
 
-          <meta name="theme-color"
-                content="#111827">
+          <meta charset="utf-8">
+
+          <meta
+            name="viewport"
+            content="width=device-width,initial-scale=1"
+          >
+
+          <meta
+            name="theme-color"
+            content="#111827"
+          >
 
           <title>複勝転がしAI</title>
 
@@ -202,10 +276,6 @@ for i, line in enumerate(lines):
             color: white;
             padding: 22px;
             border-radius: 20px;
-          }}
-
-          h1 {{
-            margin-top: 0;
           }}
 
           .card {{
@@ -239,6 +309,7 @@ for i, line in enumerate(lines):
           }}
 
           </style>
+
           </head>
 
           <body>
@@ -338,25 +409,12 @@ for i, line in enumerate(lines):
               encoding="utf-8"
           )
 
-          print(
-              f"JRA races found: {len(races)}"
-          )
-
-          for race in races:
-              print(
-                  race["venue"],
-                  race["race"],
-                  race["name"],
-                  race["start"]
-              )
-
           PY
 
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add index.html data.json
 
