@@ -144,101 +144,84 @@ jobs:
               "html.parser"
           )
 
-          lines = []
+                    races = []
+          venues = (
+              "東京", "京都", "中山", "阪神",
+              "新潟", "中京", "福島", "小倉",
+              "札幌", "函館"
+          )
 
-          for item in soup.stripped_strings:
-              text = re.sub(
-                  r"\s+",
-                  " ",
-                  item
-              ).strip()
+          for tr in soup.find_all("tr"):
+              cells = [
+                  re.sub(r"\s+", " ", c.get_text(" ", strip=True))
+                  for c in tr.find_all(["th", "td"])
+              ]
 
-              if text:
-                  lines.append(text)
-
-          venues = [
-              "東京",
-              "京都",
-              "中山",
-              "阪神",
-              "新潟",
-              "中京",
-              "福島",
-              "小倉",
-              "札幌",
-              "函館"
-          ]
-
-          races = []
-          current_venue = ""
-
-          for i, line in enumerate(lines):
-
-              venue_match = re.search(
-                  r"\d+\s*回\s*("
-                  + "|".join(venues)
-                  + r")\s*\d+\s*日",
-                  line
-              )
-
-              if venue_match:
-                  current_venue = venue_match.group(1)
-
-                  print(
-                      "Venue detected:",
-                      current_venue
-                  )
-
+              if len(cells) < 3:
                   continue
 
-              race_match = re.match(
-                  r"^(\d{1,2})\s*レース$",
-                  line
+              first = re.sub(r"\s+", "", cells[0])
+
+              race_match = re.fullmatch(
+                  r"(\d{1,2})レース",
+                  first
               )
 
               if not race_match:
                   continue
 
-              if not current_venue:
-                  continue
+              race_no = int(race_match.group(1))
+              race_name = cells[1]
 
-              race_no = int(
-                  race_match.group(1)
+              time_match = re.search(
+                  r"(\d{1,2})\s*時\s*(\d{2})\s*分",
+                  cells[2]
               )
 
-              race_name = ""
-              start_time = ""
+              if not time_match:
+                  continue
 
-              for candidate in lines[
-                  i + 1:i + 15
-              ]:
+              start_time = (
+                  time_match.group(1)
+                  + ":"
+                  + time_match.group(2)
+              )
 
-                  time_match = re.search(
-                      r"(\d{1,2})\s*時\s*(\d{2})\s*分",
-                      candidate
+              venue = ""
+
+              previous = tr.find_previous(
+                  string=re.compile(
+                      r"\d+\s*回\s*("
+                      + "|".join(venues)
+                      + r")\s*\d+\s*日"
+                  )
+              )
+
+              if previous:
+                  venue_match = re.search(
+                      r"\d+\s*回\s*("
+                      + "|".join(venues)
+                      + r")\s*\d+\s*日",
+                      previous
                   )
 
-                  if time_match:
-                      start_time = (
-                          time_match.group(1)
-                          + ":"
-                          + time_match.group(2)
-                      )
-                      break
+                  if venue_match:
+                      venue = venue_match.group(1)
 
-                  if not race_name:
-                      race_name = candidate
+              if not venue:
+                  print(
+                      "会場を判定できません:",
+                      race_no,
+                      race_name
+                  )
+                  continue
 
-              if race_name and start_time:
-
-                  race = {
-                      "venue": current_venue,
-                      "race": race_no,
-                      "name": race_name,
-                      "start": start_time
-                  }
-
-                  races.append(race)
+              races.append({
+                  "venue": venue,
+                  "race": race_no,
+                  "name": race_name,
+                  "start": start_time
+              })
 
           unique = {}
 
@@ -247,12 +230,9 @@ jobs:
                   race["venue"],
                   race["race"]
               )
-
               unique[key] = race
 
-          races = list(
-              unique.values()
-          )
+          races = list(unique.values())
 
           races.sort(
               key=lambda x: (
@@ -262,7 +242,7 @@ jobs:
           )
 
           print(
-              "JRA races found:",
+              "JRAレースが見つかりました:",
               len(races)
           )
 
@@ -275,13 +255,8 @@ jobs:
               )
 
           if not races:
-              print("First 100 parsed lines:")
-
-              for line in lines[:100]:
-                  print(line)
-
               raise RuntimeError(
-                  "JRAのレースデータを解析できませんでした。"
+                  "JRA race data could not be parsed."
               )
 
           data = {
