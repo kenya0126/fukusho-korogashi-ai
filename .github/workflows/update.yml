@@ -53,69 +53,54 @@ jobs:
           )
           r.raise_for_status()
 
-          soup = BeautifulSoup(r.text, "html.parser")
+          soup = BeautifulSoup(r.content, "html.parser")
 
-          races = []
+lines = [
+    x.strip()
+    for x in soup.stripped_strings
+    if x.strip()
+]
 
-          # JRA公式ページの表を直接解析
-          for tr in soup.find_all("tr"):
-              cells = [
-                  c.get_text(" ", strip=True)
-                  for c in tr.find_all(["th", "td"])
-              ]
+races = []
+venue = ""
 
-              if len(cells) < 3:
-                  continue
+for i, line in enumerate(lines):
 
-              race_match = re.match(
-                  r"^(\d+)\s*レース$",
-                  cells[0]
-              )
+    m = re.search(
+        r"\d+回(東京|京都|中山|阪神|新潟|中京|福島|小倉|札幌|函館)\d+日",
+        line
+    )
 
-              if not race_match:
-                  continue
+    if m:
+        venue = m.group(1)
 
-              race_no = int(race_match.group(1))
+    m = re.match(r"^(\d+)レース$", line)
 
-              race_name = cells[1]
-              start_time = cells[2]
+    if not m or not venue:
+        continue
 
-              # 東京・京都などの開催場を直前の見出しから推定
-              venue = ""
+    race_no = int(m.group(1))
+    name = ""
+    start = ""
 
-              parent_text = tr.parent.get_text(
-                  " ",
-                  strip=True
-              )
+    for x in lines[i + 1:i + 8]:
 
-              if "東京" in parent_text:
-                  venue = "東京"
-              elif "京都" in parent_text:
-                  venue = "京都"
-              elif "中山" in parent_text:
-                  venue = "中山"
-              elif "阪神" in parent_text:
-                  venue = "阪神"
-              elif "新潟" in parent_text:
-                  venue = "新潟"
-              elif "中京" in parent_text:
-                  venue = "中京"
-              elif "福島" in parent_text:
-                  venue = "福島"
-              elif "小倉" in parent_text:
-                  venue = "小倉"
-              elif "札幌" in parent_text:
-                  venue = "札幌"
-              elif "函館" in parent_text:
-                  venue = "函館"
+        t = re.search(r"(\d{1,2})時(\d{2})分", x)
 
-              races.append({
-                  "venue": venue,
-                  "race": race_no,
-                  "name": race_name,
-                  "start": start_time
-              })
+        if t:
+            start = t.group(1) + ":" + t.group(2)
+            break
 
+        if not name:
+            name = x
+
+    if name and start:
+        races.append({
+            "venue": venue,
+            "race": race_no,
+            "name": name,
+            "start": start
+        })
           # 重複除去
           unique = {}
 
