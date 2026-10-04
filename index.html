@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>複勝転がしAI</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f6f8;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif}
+.wrap{max-width:720px;margin:auto;padding:16px}
+.hero{background:#111827;color:white;border-radius:22px;padding:22px;margin-bottom:14px}
+h1{font-size:26px;margin:0 0 8px}
+.sub{color:#cbd5e1;font-size:13px;line-height:1.6}
+.card{background:white;border-radius:18px;padding:17px;margin:12px 0;box-shadow:0 2px 12px #0000000a}
+.title{font-size:13px;color:#6b7280;margin-bottom:6px}
+.horse{font-size:22px;font-weight:800}
+.row{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.badge{padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800;background:#e8f5e9;color:#176b2c}
+.reason{line-height:1.7;margin-top:10px}
+.notice{background:#fffbe6;border-left:4px solid #eab308}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.metric{background:#f7f8fa;border-radius:14px;padding:12px}
+.metric b{font-size:18px}
+.skip{background:#fff7ed}
+.small{font-size:12px;color:#6b7280;line-height:1.6}
+footer{text-align:center;padding:22px 4px 8px;font-size:11px;color:#7b8490}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section class="hero">
+<h1>複勝転がしAI</h1>
+<div class="sub">JRAレースを「勝つ」だけでなく、3着以内を狙う視点で評価する個人用分析ツール</div>
+</section>
+
+<div class="card notice">
+<b>🚧 初期セットアップ中</b>
+<div class="reason">
+現在は画面の土台を公開しています。今後、開催情報・オッズ・馬場・過去成績などを取り込み、複勝転がし候補を自動ランキングする予定です。
+</div>
+</div>
+
+<div class="card">
+<div class="row">
+<div>
+<div class="title">本日の最有力候補</div>
+<div class="horse">データ更新待ち</div>
+</div>
+<span class="badge">準備中</span>
+</div>
+<div class="reason">
+候補は「3着以内の安定性」「複勝オッズとのバランス」「人気との乖離」「展開・馬場適性」などを総合評価します。
+</div>
+</div>
+
+<div class="card">
+<div class="title">評価の基本</div>
+<div class="grid">
+<div class="metric">3着内確率<br><b>—</b></div>
+<div class="metric">複勝オッズ<br><b>—</b></div>
+<div class="metric">AI評価<br><b>—</b></div>
+<div class="metric">転がし適性<br><b>—</b></div>
+</div>
+</div>
+
+<div class="card skip">
+<b>⛔ 見送り判定</b>
+<div class="reason">
+人気だけで買うことはせず、信頼度が低いレースやオッズ妙味が薄い馬は「見送り」として表示する設計です。
+</div>
+</div>
+
+<div class="card">
+<b>これから追加する機能</b>
+<div class="reason">
+① 全開催レースの自動分析<br>
+② 複勝転がし候補ランキング<br>
+③ 買い理由・見送り理由の表示<br>
+④ 的中率・回収率の記録<br>
+⑤ 週次データ更新
+</div>
+</div>
+
+<footer>
+個人利用向け。AIの評価は予測であり、的中や利益を保証するものではありません。
+</footer>
+
+</div>
+</body>
+</html>
