@@ -47,7 +47,8 @@ jobs:
           headers = {
               "User-Agent": (
                   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 "
-                  "like Mac OS X) AppleWebKit/605.1.15"
+                  "like Mac OS X) AppleWebKit/605.1.15 "
+                  "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
               ),
               "Accept-Language": "ja-JP,ja;q=0.9"
           }
@@ -58,10 +59,88 @@ jobs:
               timeout=30
           )
 
+          print("HTTP status:", r.status_code)
+          print("Content-Type:", r.headers.get("Content-Type"))
+          print("Content-Length:", len(r.content))
+          print("Final URL:", r.url)
+
           r.raise_for_status()
 
+          # JRAページの文字コードを候補から判定
+          candidates = [
+              "utf-8",
+              "cp932",
+              "shift_jis",
+              "euc_jp"
+          ]
+
+          html_text = None
+
+          for encoding in candidates:
+              try:
+                  text = r.content.decode(
+                      encoding,
+                      errors="replace"
+                  )
+
+                  score = 0
+
+                  for marker in [
+                      "競馬番組",
+                      "レース番号",
+                      "東京",
+                      "京都",
+                      "レース"
+                  ]:
+                      if marker in text:
+                          score += 1
+
+                  print(
+                      "Encoding:",
+                      encoding,
+                      "score:",
+                      score
+                  )
+
+                  if html_text is None or score > html_text[0]:
+                      html_text = (score, text)
+
+              except Exception as e:
+                  print(
+                      "Encoding error:",
+                      encoding,
+                      str(e)
+                  )
+
+          if html_text is None:
+              raise RuntimeError(
+                  "JRAページを文字列として読み込めませんでした。"
+              )
+
+          html = html_text[1]
+
+          print(
+              "Selected encoding score:",
+              html_text[0]
+          )
+
+          print(
+              "Contains 競馬番組:",
+              "競馬番組" in html
+          )
+
+          print(
+              "Contains 東京:",
+              "東京" in html
+          )
+
+          print(
+              "Contains 京都:",
+              "京都" in html
+          )
+
           soup = BeautifulSoup(
-              r.content,
+              html,
               "html.parser"
           )
 
@@ -77,7 +156,7 @@ jobs:
               if text:
                   lines.append(text)
 
-          venues = (
+          venues = [
               "東京",
               "京都",
               "中山",
@@ -88,7 +167,7 @@ jobs:
               "小倉",
               "札幌",
               "函館"
-          )
+          ]
 
           races = []
           current_venue = ""
@@ -96,17 +175,24 @@ jobs:
           for i, line in enumerate(lines):
 
               venue_match = re.search(
-                  r"\d+回("
+                  r"\d+\s*回\s*("
                   + "|".join(venues)
-                  + r")\d+日",
+                  + r")\s*\d+\s*日",
                   line
               )
 
               if venue_match:
                   current_venue = venue_match.group(1)
 
+                  print(
+                      "Venue detected:",
+                      current_venue
+                  )
+
+                  continue
+
               race_match = re.match(
-                  r"^(\d{1,2})レース$",
+                  r"^(\d{1,2})\s*レース$",
                   line
               )
 
@@ -124,11 +210,11 @@ jobs:
               start_time = ""
 
               for candidate in lines[
-                  i + 1:i + 10
+                  i + 1:i + 15
               ]:
 
                   time_match = re.search(
-                      r"(\d{1,2})時(\d{2})分",
+                      r"(\d{1,2})\s*時\s*(\d{2})\s*分",
                       candidate
                   )
 
@@ -145,17 +231,18 @@ jobs:
 
               if race_name and start_time:
 
-                  races.append({
+                  race = {
                       "venue": current_venue,
                       "race": race_no,
                       "name": race_name,
                       "start": start_time
-                  })
+                  }
+
+                  races.append(race)
 
           unique = {}
 
           for race in races:
-
               key = (
                   race["venue"],
                   race["race"]
@@ -188,8 +275,13 @@ jobs:
               )
 
           if not races:
+              print("First 100 parsed lines:")
+
+              for line in lines[:100]:
+                  print(line)
+
               raise RuntimeError(
-                  "JRA race data could not be parsed."
+                  "JRAのレースデータを解析できませんでした。"
               )
 
           data = {
@@ -234,7 +326,7 @@ jobs:
               </div>
               """
 
-          html = f"""<!doctype html>
+          html_page = f"""<!doctype html>
           <html lang="ja">
 
           <head>
@@ -405,7 +497,7 @@ jobs:
           """
 
           Path("index.html").write_text(
-              html,
+              html_page,
               encoding="utf-8"
           )
 
@@ -421,6 +513,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes"
           else
-            git commit -m "Fix JRA race data parser"
+            git commit -m "Improve JRA race parser"
             git push
           fi
