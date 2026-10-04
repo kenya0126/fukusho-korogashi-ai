@@ -1,0 +1,229 @@
+name: Weekly JRA update
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 23 * * 6"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install packages
+        run: pip install requests beautifulsoup4
+
+      - name: Update JRA data
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import re
+          from pathlib import Path
+
+          import requests
+          from bs4 import BeautifulSoup
+
+          JST = dt.timezone(dt.timedelta(hours=9))
+          today = dt.datetime.now(JST).date()
+
+          url = (
+              f"https://www.jra.go.jp/keiba/calendar2026/"
+              f"{today:%Y}/{today:%m}/{today:%m%d}.html"
+          )
+
+          r = requests.get(
+              url,
+              headers={"User-Agent": "Mozilla/5.0"},
+              timeout=30
+          )
+          r.raise_for_status()
+
+          soup = BeautifulSoup(r.text, "html.parser")
+
+          races = []
+
+          for table in soup.find_all("table"):
+              for tr in table.find_all("tr"):
+                  cells = [
+                      c.get_text(" ", strip=True)
+                      for c in tr.find_all(["th", "td"])
+                  ]
+
+                  if len(cells) >= 3 and re.match(
+                      r"^\d+レース$", cells[0]
+                  ):
+                      races.append({
+                          "race": cells[0],
+                          "name": cells[1],
+                          "start": cells[2]
+                      })
+
+          data = {
+              "updated_at": dt.datetime.now(JST).isoformat(
+                  timespec="minutes"
+              ),
+              "date": today.isoformat(),
+              "source": "JRA公式",
+              "source_url": url,
+              "races": races
+          }
+
+          Path("data.json").write_text(
+              json.dumps(
+                  data,
+                  ensure_ascii=False,
+                  indent=2
+              ),
+              encoding="utf-8"
+          )
+
+          rows = ""
+
+          for x in races:
+              rows += f"""
+              <div class="race">
+                <b>{x["race"]} {x["name"]}</b><br>
+                <small>発走 {x["start"]}</small>
+              </div>
+              """
+
+          html = f"""<!doctype html>
+          <html lang="ja">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport"
+                content="width=device-width,initial-scale=1">
+          <meta name="theme-color" content="#111827">
+
+          <title>複勝転がしAI</title>
+
+          <style>
+          body {{
+            margin: 0;
+            background: #f3f5f7;
+            color: #17202a;
+            font-family:
+              -apple-system,
+              BlinkMacSystemFont,
+              sans-serif;
+          }}
+
+          main {{
+            max-width: 720px;
+            margin: auto;
+            padding: 16px;
+          }}
+
+          header {{
+            background: #111827;
+            color: white;
+            padding: 22px;
+            border-radius: 20px;
+          }}
+
+          .card {{
+            background: white;
+            padding: 16px;
+            border-radius: 16px;
+            margin: 12px 0;
+          }}
+
+          .race {{
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            margin: 8px 0;
+          }}
+
+          small {{
+            color: #666;
+          }}
+          </style>
+          </head>
+
+          <body>
+          <main>
+
+          <header>
+            <h1>複勝転がしAI</h1>
+            <div>
+              JRA公式情報を使った個人用分析ツール
+            </div>
+          </header>
+
+          <section class="card">
+            <b>システム状態</b>
+            <p>
+              JRA開催情報を自動更新しています。
+            </p>
+            <small>
+              最終更新 {data["updated_at"]}
+            </small>
+          </section>
+
+          <section class="card">
+            <h2>本日の候補</h2>
+            <p>
+              馬別データ・オッズ分析を追加中です。
+              現段階では「買い」を断定しません。
+            </p>
+          </section>
+
+          <section class="card">
+            <h2>今日のJRA開催</h2>
+            {rows}
+          </section>
+
+          <section class="card">
+            <h2>次の段階</h2>
+            <p>
+              出馬表 → オッズ → 過去成績 →
+              3着内評価 → 複勝転がし候補 →
+              的中率・回収率
+            </p>
+          </section>
+
+          <footer>
+            <small>
+              出典：JRA公式。
+              予測は利益を保証しません。
+            </small>
+          </footer>
+
+          </main>
+          </body>
+          </html>
+          """
+
+          Path("index.html").write_text(
+              html,
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add index.html data.json
+
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Auto-update JRA race information"
+            git push
+          fi
